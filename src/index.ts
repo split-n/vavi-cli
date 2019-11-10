@@ -3,6 +3,7 @@ import util from "util";
 import readline from 'readline';
 import * as child_process from 'child_process'
 import fs from "fs";
+import * as csvWriter from 'csv-writer';
 
 const readFile = util.promisify(fs.readFile);
 
@@ -11,7 +12,7 @@ class LoginCardInfo extends vavi.LoginCardInfo {
     title?: string;
 }
 
-async function* getAsyncReadlineIter() : AsyncIterableIterator<string> {
+async function* getAsyncReadlineIter(): AsyncIterableIterator<string> {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout,
@@ -24,34 +25,47 @@ async function* getAsyncReadlineIter() : AsyncIterableIterator<string> {
 }
 
 async function main() {
-    const json = await readFile(process.argv[2], 'utf8');
+    const cardInfoPath = process.argv[2];
+    const outCsvPath = process.argv[3];
+
+    const json = await readFile(cardInfoPath, 'utf8');
     const loginCardInfos: LoginCardInfo[] = JSON.parse(json);
     const crawler = await vavi.launch({});
 
 
-    const result: vavi.CardUsageStats[] = [];
+    const result = [];
 
-    for(const loginCardInfo of loginCardInfos) {
+    for (const loginCardInfo of loginCardInfos) {
         // don't use map to await sequentially
-        result.push(await crawl(crawler, loginCardInfo));
+        const stats = await crawl(crawler, loginCardInfo);
+        result.push({title: loginCardInfo.title, balance: stats.balance, isNetUseEnabled: stats.isNetUseEnabled});
     }
+
+    const cw = csvWriter.createObjectCsvWriter({
+        path: outCsvPath,
+        header: [
+            {id: 'title', title: 'Title'},
+            {id: 'balance', title: 'Balance'},
+            {id: 'isNetUseEnabled', title: 'IsNetUseEnabled'}]
+    });
+    await cw.writeRecords(result);
 }
 
-async function crawl(crawler: vavi.VaViCrawler, loginCardInfo: vavi.LoginCardInfo) :Promise<vavi.CardUsageStats>{
+async function crawl(crawler: vavi.VaViCrawler, loginCardInfo: vavi.LoginCardInfo): Promise<vavi.CardUsageStats> {
     let captcha = await crawler.getCardUsageStats(loginCardInfo);
     const readlineIter = getAsyncReadlineIter();
-    while(true) {
+    while (true) {
         child_process.spawn('google-chrome', [captcha.captchaImage], {detached: true});
         process.stdout.write("Please input captcha.\n> ");
 
         const inputData = await readlineIter.next();
-        if(inputData.done) {
+        if (inputData.done) {
             throw new Error("Cancelled");
         }
 
         const result = await captcha.continueFunc(inputData.value);
         console.log(util.inspect(result));
-        if(result instanceof vavi.CaptchaInterruption) {
+        if (result instanceof vavi.CaptchaInterruption) {
             captcha = result;
         } else {
             return result;

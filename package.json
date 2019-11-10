@@ -23,6 +23,7 @@
   },
   "homepage": "https://github.com/split-n/vavi-cli#readme",
   "dependencies": {
+    "csv-writer": "^1.5.0",
     "vavi": "^1.0.0"
   },
   "devDependencies": {
