@@ -49,6 +49,8 @@ async function main() {
             {id: 'isNetUseEnabled', title: 'IsNetUseEnabled'}]
     });
     await cw.writeRecords(result);
+
+    await crawler.dispose();
 }
 
 async function crawl(crawler: vavi.VaViCrawler, loginCardInfo: vavi.LoginCardInfo): Promise<vavi.CardUsageStats> {
